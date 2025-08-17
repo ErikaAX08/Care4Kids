@@ -98,6 +98,7 @@ static_root/
 # Database
 *.sqlite3
 *.db
+
 # Xcode
 #
 # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
@@ -150,5 +151,14 @@ fastlane/test_output
 *.gcov
 *.lcov
 
-# Specific file that was causing issues
-Care4KidsiOSApp/Care4KidsiOSApp.xcodeproj/project.pbxproj
+# Python
+__pycache__/
+*.pyc
+*.db
+*.sqlite3
+
+# Xcode
+*.xcuserstate
+*.xcworkspace/
+project.pbxproj
+xcuserdata/
