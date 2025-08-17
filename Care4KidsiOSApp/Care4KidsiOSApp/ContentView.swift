@@ -7,8 +7,6 @@
 
 import SwiftUI
 
-import SwiftUI
-
 struct ContentView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @State private var showSplash = true
