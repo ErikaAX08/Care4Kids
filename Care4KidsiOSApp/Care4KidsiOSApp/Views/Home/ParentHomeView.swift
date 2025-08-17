@@ -98,12 +98,16 @@ struct ParentDashboardView: View {
                         GridItem(.flexible()),
                         GridItem(.flexible())
                     ], spacing: 16) {
-                        FeatureCard(
-                            icon: "person.2.fill",
-                            title: "Dispositivos Conectados",
-                            subtitle: "3 activos",
-                            color: Constants.Colors.primaryPurple
-                        )
+                        // Navegación a gestión de apps
+                        NavigationLink(destination: AppManagementView()) {
+                            FeatureCard(
+                                icon: "app.badge.fill",
+                                title: "Gestión de Apps",
+                                subtitle: "Ver aplicaciones",
+                                color: Constants.Colors.primaryPurple
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
                         
                         FeatureCard(
                             icon: "clock.fill",
@@ -330,14 +334,114 @@ enum ActivityStatus {
 struct ParentControlsView: View {
     var body: some View {
         NavigationView {
-            VStack {
-                Text("Controles Parentales")
-                    .font(Constants.Fonts.title)
-                    .fontWeight(.bold)
-                Spacer()
+            ScrollView {
+                VStack(spacing: 24) {
+                    Text("Controles Parentales")
+                        .font(Constants.Fonts.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(Constants.Colors.darkGray)
+                        .padding(.top, 20)
+                    
+                    // Opciones de control
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ], spacing: 16) {
+                        
+                        NavigationLink(destination: AppManagementView()) {
+                            ControlOptionCard(
+                                icon: "app.badge.fill",
+                                title: "Gestión de Apps",
+                                description: "Controla qué aplicaciones pueden usar tus hijos",
+                                color: Constants.Colors.primaryPurple
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        ControlOptionCard(
+                            icon: "clock.fill",
+                            title: "Tiempo de Pantalla",
+                            description: "Establece límites de tiempo de uso",
+                            color: Constants.Colors.secondaryPink
+                        )
+                        
+                        ControlOptionCard(
+                            icon: "shield.fill",
+                            title: "Filtro de Contenido",
+                            description: "Bloquea sitios web inapropiados",
+                            color: .orange
+                        )
+                        
+                        ControlOptionCard(
+                            icon: "location.fill",
+                            title: "Ubicación",
+                            description: "Monitorea la ubicación de tus hijos",
+                            color: .green
+                        )
+                        
+                        ControlOptionCard(
+                            icon: "wifi",
+                            title: "Control de WiFi",
+                            description: "Gestiona el acceso a internet",
+                            color: .blue
+                        )
+                        
+                        ControlOptionCard(
+                            icon: "moon.fill",
+                            title: "Horario de Descanso",
+                            description: "Programa pausas automáticas",
+                            color: .indigo
+                        )
+                    }
+                    .padding(.horizontal, 24)
+                    
+                    Spacer(minLength: 100)
+                }
             }
-            .navigationTitle("Controles")
+            .background(Color.white)
+            .navigationBarHidden(true)
         }
+    }
+}
+
+struct ControlOptionCard: View {
+    let icon: String
+    let title: String
+    let description: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.2))
+                    .frame(width: 60, height: 60)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundColor(color)
+            }
+            
+            VStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Constants.Colors.darkGray)
+                    .multilineTextAlignment(.center)
+                
+                Text(description)
+                    .font(.system(size: 12))
+                    .foregroundColor(Constants.Colors.darkGray.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        )
     }
 }
 
