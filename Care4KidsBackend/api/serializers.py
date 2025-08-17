@@ -49,6 +49,7 @@ class ParentRegistrationSerializer(serializers.ModelSerializer):
 
         # Create family in MongoDB and link to Django user
         family_id = self.create_mongodb_family(parent)
+        print(family_id)
         parent.family_id = family_id
         parent.save()
 
