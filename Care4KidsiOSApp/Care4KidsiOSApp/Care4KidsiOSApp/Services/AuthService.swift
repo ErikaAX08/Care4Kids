@@ -158,6 +158,22 @@ class AuthService: ObservableObject {
         // Por ahora solo verificamos que existe
         return getSavedToken() != nil
     }
+    
+    // MARK: - Static Methods for Token Access
+       static func getCurrentToken() -> String? {
+           return UserDefaults.standard.string(forKey: "auth_token")
+       }
+       
+       static func isUserAuthenticated() -> Bool {
+           return getCurrentToken() != nil
+       }
+       
+       static func clearAllUserData() {
+           UserDefaults.standard.removeObject(forKey: "auth_token")
+           UserDefaults.standard.removeObject(forKey: "refresh_token")
+           UserDefaults.standard.removeObject(forKey: "saved_user")
+           print("🧹 AuthService: Todos los datos de usuario limpiados")
+       }
 }
 
 enum AuthServiceError: Error, LocalizedError {

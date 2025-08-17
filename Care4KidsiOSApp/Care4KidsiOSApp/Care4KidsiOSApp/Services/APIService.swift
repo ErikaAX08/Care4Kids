@@ -170,4 +170,71 @@ class APIService: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "auth_token")
         UserDefaults.standard.removeObject(forKey: "user_data")
     }
+    
+    // MARK: - Chatbot Methods
+       func sendChatMessage(message: String, token: String) async throws -> ChatbotResponse {
+           let chatRequest = ChatbotRequest(message: message)
+           let requestBody = try JSONEncoder().encode(chatRequest)
+           
+           return try await makeAuthenticatedRequest(
+               endpoint: "chatbot/",
+               method: .POST,
+               body: requestBody,
+               token: token,
+               responseType: ChatbotResponse.self
+           )
+       }
+       
+       // MARK: - Private Authenticated Request
+       private func makeAuthenticatedRequest<T: Codable>(
+           endpoint: String,
+           method: HTTPMethod,
+           body: Data? = nil,
+           token: String,
+           responseType: T.Type
+       ) async throws -> T {
+           
+           guard let url = URL(string: baseURL + endpoint) else {
+               throw APIServiceError.invalidURL
+           }
+           
+           var request = URLRequest(url: url)
+           request.httpMethod = method.rawValue
+           request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+           request.setValue("Token \(token)", forHTTPHeaderField: "Authorization")
+           
+           if let body = body {
+               request.httpBody = body
+           }
+           
+           do {
+               let (data, response) = try await URLSession.shared.data(for: request)
+               
+               guard let httpResponse = response as? HTTPURLResponse else {
+                   throw APIServiceError.invalidResponse
+               }
+               
+               let responseString = String(data: data, encoding: .utf8) ?? "No se pudo decodificar"
+               print("📄 Authenticated Response: '\(responseString)'")
+               
+               switch httpResponse.statusCode {
+               case 200...299:
+                   let decoder = JSONDecoder()
+                   return try decoder.decode(responseType, from: data)
+               case 401:
+                   throw APIServiceError.unauthorized
+               case 400:
+                   throw APIServiceError.badRequest("Bad request")
+               case 500:
+                   throw APIServiceError.serverError
+               default:
+                   throw APIServiceError.unknownError
+               }
+               
+           } catch let error as APIServiceError {
+               throw error
+           } catch {
+               throw APIServiceError.networkError
+           }
+       }
 }

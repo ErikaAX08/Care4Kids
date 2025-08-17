@@ -11,7 +11,12 @@ struct AssistantView: View {
     @State private var messageText = ""
     @State private var messages: [ChatMessage] = []
     @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var showError = false
     @FocusState private var isTextFieldFocused: Bool
+    
+    // Services
+    private let chatbotService = ChatbotService()
     
     var body: some View {
         VStack(spacing: 0) {
@@ -41,7 +46,7 @@ struct AssistantView: View {
                     
                     // Animated gradient text
                     VStack(spacing: 16) {
-                        Text("Hola {nombre}.")
+                        Text("Hola.")
                             .font(.system(size: 36, weight: .bold))
                             .foregroundStyle(
                                 LinearGradient(
@@ -87,37 +92,28 @@ struct AssistantView: View {
                 .background(Color.white)
             } else {
                 // Chat messages
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 16) {
-                            ForEach(messages) { message in
-                                MessageBubble(message: message)
-                                    .id(message.id)
-                            }
-                            
-                            if isLoading {
-                                TypingIndicator()
-                            }
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        ForEach(messages) { message in
+                            MessageBubble(message: message)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 20)
-                    }
-                    .onChange(of: messages.count) { _ in
-                        if let lastMessage = messages.last {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                            }
+                        
+                        if isLoading {
+                            TypingIndicator()
                         }
                     }
-                    .onChange(of: isLoading) { _ in
-                        if isLoading, let lastMessage = messages.last {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                            }
-                        }
-                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 20)
                 }
                 .background(Color.white)
+                .onChange(of: messages.count) { _ in
+                    scrollToLastMessage()
+                }
+                .onChange(of: isLoading) { _ in
+                    if isLoading {
+                        scrollToLastMessage()
+                    }
+                }
             }
             
             // Input area
@@ -133,10 +129,16 @@ struct AssistantView: View {
                             .font(.system(size: 16))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
+                            .onSubmit {
+                                if !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    sendMessage()
+                                }
+                            }
                         
                         // Attach button
                         Button(action: {
-                            // Acción para adjuntar archivos
+                            // Acción para adjuntar archivos (futuro)
+                            print("📎 Adjuntar archivos - Funcionalidad pendiente")
                         }) {
                             Image(systemName: "paperclip")
                                 .font(.system(size: 20))
@@ -151,8 +153,9 @@ struct AssistantView: View {
                     
                     // Voice/Send button
                     Button(action: {
-                        if messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            // Activar grabación de voz
+                        let trimmedMessage = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmedMessage.isEmpty {
+                            // Activar grabación de voz (futuro)
                             startVoiceRecording()
                         } else {
                             // Enviar mensaje
@@ -178,18 +181,30 @@ struct AssistantView: View {
             }
         }
         .background(Constants.Colors.lightGray.opacity(0.05))
+        .alert("Error", isPresented: $showError) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage ?? "Ha ocurrido un error")
+        }
     }
+    
+    // MARK: - Private Methods
     
     private func sendMessage() {
         let userMessage = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !userMessage.isEmpty else { return }
         
+        // Verificar autenticación
+        guard AuthService.isUserAuthenticated() else {
+            showErrorAlert("No estás autenticado. Por favor, inicia sesión nuevamente.")
+            return
+        }
+        
         // Add user message
         let newMessage = ChatMessage(
-            id: UUID(),
             text: userMessage,
             isFromUser: true,
-            timestamp: Date()
+            status: .sent
         )
         
         messages.append(newMessage)
@@ -197,18 +212,63 @@ struct AssistantView: View {
         isTextFieldFocused = false
         isLoading = true
         
-        // Simulate AI response (aquí integrarías con Gemini API)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            let aiResponse = generateAIResponse(for: userMessage)
-            let responseMessage = ChatMessage(
-                id: UUID(),
-                text: aiResponse,
-                isFromUser: false,
-                timestamp: Date()
-            )
-            
-            messages.append(responseMessage)
-            isLoading = false
+        // Send to API
+        Task {
+            do {
+                print("🚀 Enviando mensaje al chatbot: '\(userMessage)'")
+                
+                let response = try await chatbotService.sendMessage(userMessage)
+                
+                await MainActor.run {
+                    let aiMessage = ChatMessage(
+                        text: response,
+                        isFromUser: false,
+                        status: .received
+                    )
+                    
+                    messages.append(aiMessage)
+                    isLoading = false
+                    
+                    print("✅ Respuesta del chatbot recibida y mostrada")
+                }
+                
+            } catch let error as ChatbotServiceError {
+                await MainActor.run {
+                    isLoading = false
+                    
+                    // Si es error de autenticación, mostrar mensaje específico
+                    if case .notAuthenticated = error {
+                        showErrorAlert("Tu sesión ha expirado. Por favor, inicia sesión nuevamente.")
+                    } else {
+                        showErrorAlert(error.localizedDescription)
+                    }
+                    
+                    // Agregar mensaje de error en el chat
+                    let errorMessage = ChatMessage(
+                        text: "❌ Error: \(error.localizedDescription)",
+                        isFromUser: false,
+                        status: .failed
+                    )
+                    messages.append(errorMessage)
+                }
+                
+                print("❌ Error enviando mensaje: \(error.localizedDescription)")
+                
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    showErrorAlert("Error inesperado: \(error.localizedDescription)")
+                    
+                    let errorMessage = ChatMessage(
+                        text: "❌ Error inesperado. Por favor, intenta nuevamente.",
+                        isFromUser: false,
+                        status: .failed
+                    )
+                    messages.append(errorMessage)
+                }
+                
+                print("💥 Error inesperado: \(error)")
+            }
         }
     }
     
@@ -218,23 +278,26 @@ struct AssistantView: View {
     }
     
     private func startVoiceRecording() {
-        // Implementar grabación de voz
-        print("Iniciando grabación de voz...")
+        // Implementar grabación de voz en el futuro
+        print("🎤 Iniciando grabación de voz...")
+        showErrorAlert("Funcionalidad de voz próximamente disponible")
     }
     
-    private func generateAIResponse(for userMessage: String) -> String {
-        // Aquí integrarías con Gemini API
-        // Por ahora, respuestas simuladas
-        let responses = [
-            "Para proteger a tu hijo del ciberbullying, es importante establecer una comunicación abierta, configurar controles parentales y enseñarle a reconocer y reportar comportamientos inadecuados.",
-            "Las aplicaciones más seguras para niños incluyen YouTube Kids, Khan Academy Kids, Scratch Jr y Duolingo. Siempre revisa las configuraciones de privacidad.",
-            "Para establecer límites de tiempo de pantalla, utiliza las herramientas integradas en los dispositivos, crea horarios específicos y explica a tu hijo la importancia del equilibrio digital.",
-            "Es excelente que te preocupes por la seguridad digital de tu hijo. ¿Hay algún aspecto específico sobre el que te gustaría saber más?"
-        ]
-        
-        return responses.randomElement() ?? "Gracias por tu pregunta. Como asistente especializado en seguridad infantil digital, estoy aquí para ayudarte con cualquier duda sobre el cuidado de tus hijos en el mundo digital."
+    private func showErrorAlert(_ message: String) {
+        errorMessage = message
+        showError = true
+    }
+    
+    private func scrollToLastMessage() {
+        // Usar un pequeño delay para asegurar que el contenido se haya renderizado
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            // El scroll automático se maneja por el ScrollView naturalmente
+            // al agregar nuevos elementos al final
+        }
     }
 }
+
+// MARK: - Supporting Views
 
 struct MessageBubble: View {
     let message: ChatMessage
@@ -245,20 +308,48 @@ struct MessageBubble: View {
                 Spacer(minLength: 60)
                 
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(message.text)
-                        .font(.system(size: 16))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 20)
-                                .fill(Constants.Colors.primaryPurple)
-                        )
+                    HStack(alignment: .bottom, spacing: 8) {
+                        if message.status == .failed {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(.red)
+                        }
+                        
+                        Text(message.text)
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(message.status == .failed ? Color.red.opacity(0.8) : Constants.Colors.primaryPurple)
+                            )
+                    }
                     
-                    Text(formatTime(message.timestamp))
-                        .font(.system(size: 12))
-                        .foregroundColor(Constants.Colors.darkGray.opacity(0.5))
-                        .padding(.trailing, 8)
+                    HStack(spacing: 4) {
+                        Text(formatTime(message.timestamp))
+                            .font(.system(size: 12))
+                            .foregroundColor(Constants.Colors.darkGray.opacity(0.5))
+                        
+                        // Status indicator for user messages
+                        switch message.status {
+                        case .sending:
+                            Image(systemName: "clock")
+                                .font(.system(size: 10))
+                                .foregroundColor(Constants.Colors.darkGray.opacity(0.5))
+                        case .sent:
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10))
+                                .foregroundColor(Constants.Colors.darkGray.opacity(0.5))
+                        case .failed:
+                            Image(systemName: "xmark")
+                                .font(.system(size: 10))
+                                .foregroundColor(.red)
+                        case .received:
+                            EmptyView()
+                        }
+                    }
+                    .padding(.trailing, 8)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 4) {
@@ -268,14 +359,14 @@ struct MessageBubble: View {
                             Circle()
                                 .fill(
                                     LinearGradient(
-                                        colors: [.blue, .purple],
+                                        colors: message.status == .failed ? [.red, .orange] : [.blue, .purple],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
                                 )
                                 .frame(width: 32, height: 32)
                             
-                            Image(systemName: "brain.head.profile")
+                            Image(systemName: message.status == .failed ? "exclamationmark.triangle.fill" : "brain.head.profile")
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(.white)
                         }
@@ -287,7 +378,7 @@ struct MessageBubble: View {
                             .padding(.vertical, 12)
                             .background(
                                 RoundedRectangle(cornerRadius: 20)
-                                    .fill(Constants.Colors.lightGray.opacity(0.3))
+                                    .fill(message.status == .failed ? Color.red.opacity(0.1) : Constants.Colors.lightGray.opacity(0.3))
                             )
                     }
                     
@@ -300,6 +391,7 @@ struct MessageBubble: View {
                 Spacer(minLength: 60)
             }
         }
+        .id(message.id)
     }
     
     private func formatTime(_ date: Date) -> String {
@@ -393,15 +485,8 @@ struct TypingIndicator: View {
         .onAppear {
             animationOffset = -4
         }
+        .id("typing")
     }
-}
-
-// Modelo para los mensajes del chat
-struct ChatMessage: Identifiable {
-    let id: UUID
-    let text: String
-    let isFromUser: Bool
-    let timestamp: Date
 }
 
 #Preview {
