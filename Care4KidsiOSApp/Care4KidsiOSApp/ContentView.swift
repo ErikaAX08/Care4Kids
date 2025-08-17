@@ -7,18 +7,39 @@
 
 import SwiftUI
 
+import SwiftUI
+
 struct ContentView: View {
+    @EnvironmentObject var authViewModel: AuthViewModel
+    @State private var showSplash = true
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        Group {
+            if showSplash {
+                SplashScreenView()
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                showSplash = false
+                            }
+                        }
+                    }
+            } else {
+                if authViewModel.isAuthenticated {
+                    HomeView()
+                } else {
+                    // Mostrar vista de bienvenida después del splash
+                    WelcomeView()
+                }
+            }
         }
-        .padding()
+        .onAppear {
+            authViewModel.checkAuthenticationStatus()
+        }
     }
 }
 
 #Preview {
     ContentView()
+        .environmentObject(AuthViewModel())
 }
