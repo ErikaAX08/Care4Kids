@@ -1,5 +1,7 @@
 import logging
 
+import google.generativeai as genai
+from django.conf import settings
 from django.contrib.auth import login, logout
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -11,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import FamilyInvitation, Parent
-from .serializers import (AcceptInvitationSerializer,
+from .serializers import (AcceptInvitationSerializer, ChatbotSerializer,
                           CheckInvitationSerializer, LoginSerializer,
                           ParentRegistrationSerializer,
                           SendFamilyInvitationSerializer)
@@ -29,23 +31,17 @@ class ParentRegistrationView(APIView):
         serializer = ParentRegistrationSerializer(data=request.data)
         print(request.data)
         print(serializer.is_valid())
-
         if not serializer.is_valid():
             return Response(
                 {"success": False, "errors": serializer.errors},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
         print(serializer.is_valid())
-
         try:
             parent = serializer.save()
-
             # Create auth token
             token, created = Token.objects.get_or_create(user=parent)
-
             logger.info(f"New parent registered: {parent.username} ({parent.email})")
-
             return Response(
                 {
                     "success": True,
@@ -68,7 +64,6 @@ class ParentRegistrationView(APIView):
                 },
                 status=status.HTTP_201_CREATED,
             )
-
         except Exception as e:
             logger.error(f"Registration failed: {str(e)}")
             return Response(
@@ -85,7 +80,6 @@ class LoginView(APIView):
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
-
         if not serializer.is_valid():
             return Response(
                 {"success": False, "errors": serializer.errors},
@@ -93,13 +87,10 @@ class LoginView(APIView):
             )
 
         user = serializer.validated_data["user"]
-
         # Create Django session
         login(request, user)
-
         # Get or create token
         token, created = Token.objects.get_or_create(user=user)
-
         logger.info(f"User logged in: {user.username} ({user.email})")
 
         return Response(
@@ -129,10 +120,8 @@ class LogoutView(APIView):
             # Delete the user's token
             if hasattr(request.user, "auth_token"):
                 request.user.auth_token.delete()
-
             # Django logout
             logout(request)
-
             return Response({"success": True, "message": "Logged out successfully"})
         except Exception as e:
             return Response(
@@ -146,7 +135,6 @@ class UserProfileView(APIView):
 
     def get(self, request):
         user = request.user
-
         return Response(
             {
                 "success": True,
@@ -174,7 +162,6 @@ class SendFamilyInvitationView(APIView):
         serializer = SendFamilyInvitationSerializer(
             data=request.data, context={"request": request}
         )
-
         if not serializer.is_valid():
             return Response(
                 {"success": False, "errors": serializer.errors},
@@ -183,28 +170,28 @@ class SendFamilyInvitationView(APIView):
 
         try:
             invitation = serializer.save()
-
             logger.info(
                 f"Family invitation sent by {request.user.username} to {invitation.invited_email}"
             )
-
             return Response(
                 {
                     "success": True,
-                    "message": "Family invitation sent successfully",
+                    "message": "Family invitation created successfully",
                     "invitation": {
-                        "invitation_id": str(invitation.invitation_id),
+                        "invitation_code": invitation.invitation_code,
                         "invited_email": invitation.invited_email,
                         "family_id": invitation.family_id,
                         "expires_at": invitation.expires_at,
                         "status": invitation.status,
                     },
-                    "invite_url": f"/api/invitations/{invitation.invitation_id}/check/",
-                    "instructions": "Share the invitation_id with the invited person",
+                    "instructions": [
+                        f"Share this 6-digit invitation code with {invitation.invited_email}:",
+                        f"Code: {invitation.invitation_code}",
+                        "They can use this code to check and accept the invitation",
+                    ],
                 },
                 status=status.HTTP_201_CREATED,
             )
-
         except Exception as e:
             logger.error(f"Failed to send invitation: {str(e)}")
             return Response(
@@ -215,13 +202,12 @@ class SendFamilyInvitationView(APIView):
 
 @method_decorator(csrf_exempt, name="dispatch")
 class CheckInvitationView(APIView):
-    """Check if invitation is valid using email (public endpoint)"""
+    """Check if invitation is valid using 6-digit invitation code (public endpoint)"""
 
     permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = CheckInvitationSerializer(data=request.data)
-
         if not serializer.is_valid():
             return Response(
                 {"success": False, "errors": serializer.errors},
@@ -229,13 +215,13 @@ class CheckInvitationView(APIView):
             )
 
         invitation = serializer.invitation
-
         return Response(
             {
                 "success": True,
                 "message": "Invitation found and is valid",
                 "invitation": {
-                    "invitation_id": str(invitation.invitation_id),
+                    "invitation_code": invitation.invitation_code
+                    or str(invitation.invitation_id),
                     "invited_email": invitation.invited_email,
                     "invited_by": invitation.invited_by.full_name,
                     "family_id": invitation.family_id,
@@ -243,20 +229,19 @@ class CheckInvitationView(APIView):
                     "status": invitation.status,
                     "days_remaining": (invitation.expires_at - timezone.now()).days,
                 },
-                "next_step": "Use /api/invitations/accept/ with your email to accept this invitation",
+                "next_step": "Use /api/invitations/accept/ with this invitation code to accept the invitation",
             }
         )
 
 
 @method_decorator(csrf_exempt, name="dispatch")
 class AcceptInvitationView(APIView):
-    """Accept family invitation using email and create account"""
+    """Accept family invitation using 6-digit invitation code and create account"""
 
     permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = AcceptInvitationSerializer(data=request.data)
-
         if not serializer.is_valid():
             return Response(
                 {"success": False, "errors": serializer.errors},
@@ -265,13 +250,10 @@ class AcceptInvitationView(APIView):
 
         try:
             parent = serializer.save()
-
             # Create auth token
             token, created = Token.objects.get_or_create(user=parent)
-
             # Auto-login the new user
             login(request, parent)
-
             logger.info(f"Family invitation accepted by {parent.email}")
 
             return Response(
@@ -291,7 +273,6 @@ class AcceptInvitationView(APIView):
                 },
                 status=status.HTTP_201_CREATED,
             )
-
         except Exception as e:
             logger.error(f"Failed to accept invitation: {str(e)}")
             return Response(
@@ -309,12 +290,11 @@ class MyInvitationsView(APIView):
         invitations = FamilyInvitation.objects.filter(invited_by=request.user).order_by(
             "-created_at"
         )
-
         invitation_list = []
         for inv in invitations:
             invitation_list.append(
                 {
-                    "invitation_id": str(inv.invitation_id),
+                    "invitation_code": inv.invitation_code or str(inv.invitation_id),
                     "invited_email": inv.invited_email,
                     "status": inv.status,
                     "created_at": inv.created_at,
@@ -331,3 +311,107 @@ class MyInvitationsView(APIView):
                 "total_sent": len(invitation_list),
             }
         )
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class ChatbotView(APIView):
+    """Simple chatbot using Gemini API"""
+
+    permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Configure Gemini API
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        self.model = genai.GenerativeModel("gemini-1.5-flash")
+
+    def post(self, request):
+        serializer = ChatbotSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"success": False, "errors": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user_message = serializer.validated_data["message"]
+
+            # Add context about the user and family app
+            system_context = f"""
+            Eres un chatbot asistente familiar muy útil. El nombre del usuario es {request.user.full_name} 
+            y forma parte de un sistema de gestión familiar. Puedes ayudar con preguntas generales 
+            sobre crianza de hijos, organización familiar, y brindar conversación amigable.
+            Mantén tus respuestas útiles, apropiadas para toda la familia, y concisas.
+            Responde siempre en español.
+            """
+
+            # Combine context with user message
+            full_prompt = f"{system_context}\n\nUser: {user_message}"
+
+            # Generate response from Gemini
+            response = self.model.generate_content(full_prompt)
+
+            # Log the interaction
+            logger.info(
+                f"Chatbot interaction by {request.user.username}: {user_message[:50]}..."
+            )
+
+            return Response(
+                {
+                    "success": True,
+                    "response": response.text,
+                    "user_message": user_message,
+                    "timestamp": timezone.now(),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Chatbot error for user {request.user.username}: {str(e)}")
+            return Response(
+                {
+                    "success": False,
+                    "error": "Estoy teniendo problemas para responder en este momento.",
+                    "debug_error": str(e),  # Remove this in production
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class FirstNameView(APIView):
+    """Extract just the first name from user's full name"""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            user = request.user
+            full_name = user.full_name or ""
+
+            # Extract first name (first word before space)
+            first_name = full_name.split()[0] if full_name.strip() else ""
+
+            logger.info(f"First name extracted for {user.username}: {first_name}")
+
+            return Response(
+                {
+                    "success": True,
+                    "first_name": first_name,
+                    "full_name": user.full_name,
+                    "user_id": user.id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Error extracting first name for user {request.user.username}: {str(e)}"
+            )
+            return Response(
+                {
+                    "success": False,
+                    "error": "Unable to extract first name",
+                    "debug_error": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
