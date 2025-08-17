@@ -1,3 +1,5 @@
+import re
+
 from django.contrib.auth import authenticate
 from django.utils import timezone
 from rest_framework import serializers
@@ -169,34 +171,36 @@ class SendFamilyInvitationSerializer(serializers.Serializer):
 
 
 class CheckInvitationSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    invitation_code = serializers.CharField(max_length=6, min_length=6)
 
-    def validate_email(self, value):
-        # Find the most recent pending invitation for this email
-        invitation = (
-            FamilyInvitation.objects.filter(invited_email=value, status="pending")
-            .order_by("-created_at")
-            .first()
-        )
-
-        if not invitation:
+    def validate_invitation_code(self, value):
+        # Validate format - must be exactly 6 digits
+        if not re.match(r"^\d{6}$", value):
             raise serializers.ValidationError(
-                "No pending invitation found for this email"
+                "Invitation code must be exactly 6 digits"
+            )
+
+        # Find the invitation by invitation_code
+        try:
+            invitation = FamilyInvitation.objects.get(
+                invitation_code=value, status="pending"
+            )
+        except FamilyInvitation.DoesNotExist:
+            raise serializers.ValidationError(
+                "No pending invitation found for this code"
             )
 
         if invitation.is_expired:
             invitation.status = "expired"
             invitation.save()
-            raise serializers.ValidationError(
-                "The invitation for this email has expired"
-            )
+            raise serializers.ValidationError("This invitation has expired")
 
         self.invitation = invitation
         return value
 
 
 class AcceptInvitationSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    invitation_code = serializers.CharField(max_length=6, min_length=6)
     full_name = serializers.CharField(max_length=100)
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
@@ -206,25 +210,31 @@ class AcceptInvitationSerializer(serializers.Serializer):
             raise serializers.ValidationError("Passwords don't match")
         return attrs
 
-    def validate_email(self, value):
-        # Find the most recent pending invitation for this email
-        invitation = (
-            FamilyInvitation.objects.filter(invited_email=value, status="pending")
-            .order_by("-created_at")
-            .first()
-        )
-
-        if not invitation:
+    def validate_invitation_code(self, value):
+        # Validate format - must be exactly 6 digits
+        if not re.match(r"^\d{6}$", value):
             raise serializers.ValidationError(
-                "No pending invitation found for this email"
+                "Invitation code must be exactly 6 digits"
+            )
+
+        # Find the invitation by invitation_code
+        try:
+            invitation = FamilyInvitation.objects.get(
+                invitation_code=value, status="pending"
+            )
+        except FamilyInvitation.DoesNotExist:
+            raise serializers.ValidationError(
+                "No pending invitation found for this code"
             )
 
         if invitation.is_expired:
             invitation.status = "expired"
             invitation.save()
-            raise serializers.ValidationError(
-                "The invitation for this email has expired"
-            )
+            raise serializers.ValidationError("This invitation has expired")
+
+        # Check if email already has an account
+        if Parent.objects.filter(email=invitation.invited_email).exists():
+            raise serializers.ValidationError("This email already has an account")
 
         # Store invitation for use in create method
         self.invitation = invitation
@@ -289,3 +299,13 @@ class AcceptInvitationSerializer(serializers.Serializer):
                 "$set": {"updated_at": timezone.now()},
             },
         )
+
+
+class ChatbotSerializer(serializers.Serializer):
+    message = serializers.CharField(max_length=1000)
+    conversation_id = serializers.CharField(max_length=100, required=False)
+
+    def validate_message(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Message cannot be empty")
+        return value.strip()

@@ -1,3 +1,4 @@
+import random
 import uuid
 from datetime import timedelta
 
@@ -29,7 +30,7 @@ class Parent(AbstractUser):
 class FamilyInvitation(models.Model):
     """Model to handle family invitations"""
 
-    invitation_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    invitation_code = models.CharField(max_length=6, unique=True, editable=False)
     invited_email = models.EmailField()
     invited_by = models.ForeignKey(
         Parent, on_delete=models.CASCADE, related_name="sent_invitations"
@@ -54,13 +55,26 @@ class FamilyInvitation(models.Model):
         unique_together = ["invited_email", "family_id", "status"]
 
     def save(self, *args, **kwargs):
+        if not self.invitation_code:
+            self.invitation_code = self.generate_unique_code()
         if not self.expires_at:
             self.expires_at = timezone.now() + timedelta(days=7)  # 7 days to accept
         super().save(*args, **kwargs)
+
+    @staticmethod
+    def generate_unique_code():
+        """Generate a unique 6-digit invitation code"""
+        max_attempts = 100
+        for _ in range(max_attempts):
+            code = str(random.randint(100000, 999999))
+            if not FamilyInvitation.objects.filter(invitation_code=code).exists():
+                return code
+        # If we can't find a unique code after max_attempts, raise an error
+        raise ValueError("Unable to generate unique invitation code")
 
     @property
     def is_expired(self):
         return timezone.now() > self.expires_at and self.status == "pending"
 
     def __str__(self):
-        return f"Invitation to {self.invited_email} for family {self.family_id}"
+        return f"Invitation {self.invitation_code} to {self.invited_email} for family {self.family_id}"

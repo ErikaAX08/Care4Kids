@@ -1,7 +1,8 @@
 from django.urls import path
 
 from .views import LoginView  # Your existing views
-from .views import (AcceptInvitationView, CheckInvitationView, LogoutView,
+from .views import (AcceptInvitationView, ChatbotView,  # Add FirstNameView
+                    CheckInvitationView, FirstNameView, LogoutView,
                     MyInvitationsView, ParentRegistrationView,
                     SendFamilyInvitationView, UserProfileView)
 
@@ -20,4 +21,8 @@ urlpatterns = [
         "invitations/accept/", AcceptInvitationView.as_view(), name="accept-invitation"
     ),
     path("invitations/my/", MyInvitationsView.as_view(), name="my-invitations"),
+    # Chatbot endpoint
+    path("chatbot/", ChatbotView.as_view(), name="chatbot"),
+    # User utilities
+    path("auth/first-name/", FirstNameView.as_view(), name="first-name"),
 ]
