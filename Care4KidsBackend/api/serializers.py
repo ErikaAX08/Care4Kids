@@ -373,9 +373,10 @@ class GenerateChildCodeSerializer(serializers.Serializer):
         return child_code
 
 
+
 class AcceptChildCodeSerializer(serializers.Serializer):
     registration_code = serializers.CharField(max_length=6, min_length=6)
-    device_id = serializers.CharField(max_length=100)  # Device unique identifier
+    device_id = serializers.CharField(max_length=100, required=False, default="")  # Made optional
     device_name = serializers.CharField(max_length=100, required=False, default="")
     device_os = serializers.CharField(max_length=50, required=False, default="")
     device_model = serializers.CharField(max_length=100, required=False, default="")
@@ -408,16 +409,24 @@ class AcceptChildCodeSerializer(serializers.Serializer):
         return value
 
     def validate_device_id(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("Device ID is required")
-        return value.strip()
+        # Since device_id is now optional, only validate if provided
+        if value and not value.strip():
+            raise serializers.ValidationError("Device ID cannot be empty if provided")
+        return value.strip() if value else ""
 
     def create(self, validated_data):
         child_code = self.child_code
 
+        # Generate device_id if not provided
+        device_id = validated_data.get("device_id")
+        if not device_id:
+            # Generate a unique device identifier
+            import uuid
+            device_id = f"device_{str(uuid.uuid4())[:8]}"
+
         # Prepare device monitoring info (convert datetime to ISO string)
         device_data = {
-            "device_id": validated_data["device_id"],
+            "device_id": device_id,
             "device_name": validated_data.get(
                 "device_name", f"{child_code.child_name}'s Device"
             ),
