@@ -21,29 +21,37 @@ struct ParentHomeView: View {
                 }
                 .tag(0)
             
-            // Controles parentales
-            ParentControlsView()
+            // Gestión de Apps
+            AppManagementView()
                 .tabItem {
-                    Image(systemName: "shield.fill")
-                    Text("Controles")
+                    Image(systemName: "iphone")
+                    Text("Apps")
                 }
                 .tag(1)
             
-            // Actividad de los niños
-            ActivityView()
+            // Ubicación
+            LocationView()
                 .tabItem {
-                    Image(systemName: "chart.bar.fill")
-                    Text("Actividad")
+                    Image(systemName: "globe.badge.chevron.backward")
+                    Text("Ubicación")
                 }
                 .tag(2)
             
-            // Configuración
-            SettingsView()
+            // Asistente
+                      AssistantView()
+                          .tabItem {
+                              Image(systemName: "message.fill")
+                              Text("Asistente")
+                          }
+                          .tag(3)
+            
+            // Perfil
+            ProfileView()
                 .tabItem {
-                    Image(systemName: "gear.fill")
-                    Text("Ajustes")
+                    Image(systemName: "person.fill")
+                    Text("Perfil")
                 }
-                .tag(3)
+                .tag(4)
         }
         .accentColor(Constants.Colors.primaryPurple)
     }
@@ -98,16 +106,6 @@ struct ParentDashboardView: View {
                         GridItem(.flexible()),
                         GridItem(.flexible())
                     ], spacing: 16) {
-                        // Navegación a gestión de apps
-                        NavigationLink(destination: AppManagementView()) {
-                            FeatureCard(
-                                icon: "app.badge.fill",
-                                title: "Gestión de Apps",
-                                subtitle: "Ver aplicaciones",
-                                color: Constants.Colors.primaryPurple
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
                         
                         FeatureCard(
                             icon: "clock.fill",
@@ -128,6 +126,13 @@ struct ParentDashboardView: View {
                             title: "Ubicación",
                             subtitle: "En casa",
                             color: .green
+                        )
+                        
+                        FeatureCard(
+                            icon: "wifi",
+                            title: "Control WiFi",
+                            subtitle: "3 dispositivos",
+                            color: .blue
                         )
                     }
                     .padding(.horizontal, 24)
@@ -348,16 +353,6 @@ struct ParentControlsView: View {
                         GridItem(.flexible())
                     ], spacing: 16) {
                         
-                        NavigationLink(destination: AppManagementView()) {
-                            ControlOptionCard(
-                                icon: "app.badge.fill",
-                                title: "Gestión de Apps",
-                                description: "Controla qué aplicaciones pueden usar tus hijos",
-                                color: Constants.Colors.primaryPurple
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
                         ControlOptionCard(
                             icon: "clock.fill",
                             title: "Tiempo de Pantalla",
@@ -391,6 +386,13 @@ struct ParentControlsView: View {
                             title: "Horario de Descanso",
                             description: "Programa pausas automáticas",
                             color: .indigo
+                        )
+                        
+                        ControlOptionCard(
+                            icon: "bell.fill",
+                            title: "Notificaciones",
+                            description: "Configura alertas y avisos",
+                            color: .purple
                         )
                     }
                     .padding(.horizontal, 24)

@@ -24,14 +24,18 @@ struct AppManagementView: View {
     ]
     
     var body: some View {
-        NavigationView {
+        ScrollView {
             VStack(spacing: 0) {
                 // Header con título
                 VStack(spacing: 20) {
-                    Text("Consejos para ti")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(Constants.Colors.darkGray)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack {
+                        Text("Consejos para ti")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(Constants.Colors.darkGray)
+                        
+                        Spacer()
+                    }
+                    .padding(.horizontal, 24)
                     
                     // Tarjetas de consejos
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -73,11 +77,14 @@ struct AppManagementView: View {
                 VStack(spacing: 20) {
                     // Título y selector de hijos
                     VStack(spacing: 16) {
-                        Text("Aplicaciones instaladas en el teléfono de:")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(Constants.Colors.darkGray)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 24)
+                        HStack {
+                            Text("Aplicaciones instaladas en el teléfono de:")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(Constants.Colors.darkGray)
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal, 24)
                         
                         // Selector de niños
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -138,11 +145,11 @@ struct AppManagementView: View {
                 }
                 .background(Color.white)
                 
-                Spacer()
+                // Espaciado inferior para el TabView
+                Spacer(minLength: 100)
             }
-            .background(Constants.Colors.lightGray.opacity(0.3))
-            .navigationBarHidden(true)
         }
+        .background(Constants.Colors.lightGray.opacity(0.3))
     }
 }
 
@@ -290,12 +297,12 @@ struct AppRowView: View {
                     updatedApp.status = app.status == .allowed ? .blocked : .allowed
                     onStatusChange(updatedApp)
                 }) {
-                    Text(app.status == .allowed ? "Abrir" : "Abrir")
+                    Text(app.status == .allowed ? "Bloquear" : "Permitir")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Constants.Colors.primaryPurple)
+                        .background(app.status == .allowed ? .red : Constants.Colors.primaryPurple)
                         .cornerRadius(16)
                 }
                 
