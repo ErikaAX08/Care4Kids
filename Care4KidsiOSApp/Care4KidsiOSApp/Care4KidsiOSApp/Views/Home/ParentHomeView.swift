@@ -38,12 +38,12 @@ struct ParentHomeView: View {
                 .tag(2)
             
             // Asistente
-                      AssistantView()
-                          .tabItem {
-                              Image(systemName: "message.fill")
-                              Text("Asistente")
-                          }
-                          .tag(3)
+            AssistantView()
+                .tabItem {
+                    Image(systemName: "message.fill")
+                    Text("Asistente")
+                }
+                .tag(3)
             
             // Perfil
             ProfileView()
@@ -59,6 +59,7 @@ struct ParentHomeView: View {
 
 struct ParentDashboardView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
+    @State private var showAddChildView = false
     
     var body: some View {
         NavigationView {
@@ -83,14 +84,32 @@ struct ParentDashboardView: View {
                             
                             Spacer()
                             
-                            Button(action: {}) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Constants.Colors.lightGray)
-                                        .frame(width: 44, height: 44)
-                                    
-                                    Image(systemName: "bell.fill")
-                                        .foregroundColor(Constants.Colors.primaryPurple)
+                            HStack(spacing: 12) {
+                                // Add child button
+                                Button(action: {
+                                    showAddChildView = true
+                                }) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Constants.Colors.primaryPurple.opacity(0.1))
+                                            .frame(width: 44, height: 44)
+                                        
+                                        Image(systemName: "person.badge.plus.fill")
+                                            .foregroundColor(Constants.Colors.primaryPurple)
+                                            .font(.system(size: 20))
+                                    }
+                                }
+                                
+                                // Notifications button
+                                Button(action: {}) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Constants.Colors.lightGray)
+                                            .frame(width: 44, height: 44)
+                                        
+                                        Image(systemName: "bell.fill")
+                                            .foregroundColor(Constants.Colors.primaryPurple)
+                                    }
                                 }
                             }
                         }
@@ -136,6 +155,9 @@ struct ParentDashboardView: View {
                         )
                     }
                     .padding(.horizontal, 24)
+                    
+                    // Códigos de registro
+                    ChildCodesListView()
                     
                     // Actividad reciente
                     VStack(alignment: .leading, spacing: 16) {
@@ -184,6 +206,9 @@ struct ParentDashboardView: View {
             }
             .background(Color.white)
             .navigationBarHidden(true)
+        }
+        .sheet(isPresented: $showAddChildView) {
+            AddChildView()
         }
     }
 }
@@ -335,155 +360,8 @@ enum ActivityStatus {
     }
 }
 
-// Views temporales para las otras pestañas
-struct ParentControlsView: View {
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    Text("Controles Parentales")
-                        .font(Constants.Fonts.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(Constants.Colors.darkGray)
-                        .padding(.top, 20)
-                    
-                    // Opciones de control
-                    LazyVGrid(columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible())
-                    ], spacing: 16) {
-                        
-                        ControlOptionCard(
-                            icon: "clock.fill",
-                            title: "Tiempo de Pantalla",
-                            description: "Establece límites de tiempo de uso",
-                            color: Constants.Colors.secondaryPink
-                        )
-                        
-                        ControlOptionCard(
-                            icon: "shield.fill",
-                            title: "Filtro de Contenido",
-                            description: "Bloquea sitios web inapropiados",
-                            color: .orange
-                        )
-                        
-                        ControlOptionCard(
-                            icon: "location.fill",
-                            title: "Ubicación",
-                            description: "Monitorea la ubicación de tus hijos",
-                            color: .green
-                        )
-                        
-                        ControlOptionCard(
-                            icon: "wifi",
-                            title: "Control de WiFi",
-                            description: "Gestiona el acceso a internet",
-                            color: .blue
-                        )
-                        
-                        ControlOptionCard(
-                            icon: "moon.fill",
-                            title: "Horario de Descanso",
-                            description: "Programa pausas automáticas",
-                            color: .indigo
-                        )
-                        
-                        ControlOptionCard(
-                            icon: "bell.fill",
-                            title: "Notificaciones",
-                            description: "Configura alertas y avisos",
-                            color: .purple
-                        )
-                    }
-                    .padding(.horizontal, 24)
-                    
-                    Spacer(minLength: 100)
-                }
-            }
-            .background(Color.white)
-            .navigationBarHidden(true)
-        }
-    }
-}
 
-struct ControlOptionCard: View {
-    let icon: String
-    let title: String
-    let description: String
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(color.opacity(0.2))
-                    .frame(width: 60, height: 60)
-                
-                Image(systemName: icon)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundColor(color)
-            }
-            
-            VStack(spacing: 8) {
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Constants.Colors.darkGray)
-                    .multilineTextAlignment(.center)
-                
-                Text(description)
-                    .font(.system(size: 12))
-                    .foregroundColor(Constants.Colors.darkGray.opacity(0.7))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-        )
-    }
-}
-
-struct ActivityView: View {
-    var body: some View {
-        NavigationView {
-            VStack {
-                Text("Actividad de los Niños")
-                    .font(Constants.Fonts.title)
-                    .fontWeight(.bold)
-                Spacer()
-            }
-            .navigationTitle("Actividad")
-        }
-    }
-}
-
-struct SettingsView: View {
-    @EnvironmentObject var authViewModel: AuthViewModel
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                Text("Configuración")
-                    .font(Constants.Fonts.title)
-                    .fontWeight(.bold)
-                
-                Spacer()
-                
-                CustomButton(title: "Cerrar Sesión", style: .secondary) {
-                    authViewModel.logout()
-                }
-                .padding(.horizontal, 24)
-                
-                Spacer()
-            }
-            .navigationTitle("Ajustes")
-        }
-    }
-}
+// Removed duplicate views that were already defined
 
 #Preview {
     ParentHomeView()

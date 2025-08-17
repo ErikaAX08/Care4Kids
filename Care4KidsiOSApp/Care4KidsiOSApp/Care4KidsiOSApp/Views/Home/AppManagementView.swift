@@ -14,13 +14,13 @@ struct AppManagementView: View {
     // Datos simulados de los niños
     private let children = ["Francisco I.", "Erika A.", "Paul S.", "Juan C.", "Antonio F.", "Isabel N.", "Gloria S.", "Ricardo N."]
     
-    // Datos simulados de apps instaladas
+    // Datos simulados de apps instaladas con iconos e intentos de acceso
     @State private var installedApps: [AppInfo] = [
-        AppInfo(name: "TikTok", category: "Redes Sociales", totalTime: "602 min", usageToday: "18 min", status: .blocked),
-        AppInfo(name: "Instagram", category: "Redes Sociales", totalTime: "450 min", usageToday: "12 min", status: .blocked),
-        AppInfo(name: "Facebook", category: "Redes Sociales", totalTime: "320 min", usageToday: "8 min", status: .blocked),
-        AppInfo(name: "WhatsApp", category: "Redes Sociales", totalTime: "280 min", usageToday: "25 min", status: .allowed),
-        AppInfo(name: "SnapChat", category: "Redes Sociales", totalTime: "180 min", usageToday: "5 min", status: .blocked)
+        AppInfo(name: "TikTok", category: "Redes Sociales", totalTime: "602 min", usageToday: "18 min", status: .blocked, iconName: "tiktok", accessAttempts: 23, lastAttempt: "Hace 15 min"),
+        AppInfo(name: "Instagram", category: "Redes Sociales", totalTime: "450 min", usageToday: "12 min", status: .blocked, iconName: "instagram", accessAttempts: 18, lastAttempt: "Hace 32 min"),
+        AppInfo(name: "Facebook", category: "Redes Sociales", totalTime: "320 min", usageToday: "8 min", status: .blocked, iconName: "facebook", accessAttempts: 12, lastAttempt: "Hace 1 hora"),
+        AppInfo(name: "WhatsApp", category: "Redes Sociales", totalTime: "280 min", usageToday: "25 min", status: .allowed, iconName: "whatsapp", accessAttempts: 0, lastAttempt: nil),
+        AppInfo(name: "SnapChat", category: "Redes Sociales", totalTime: "180 min", usageToday: "5 min", status: .blocked, iconName: "snapchat", accessAttempts: 8, lastAttempt: "Hace 2 horas")
     ]
     
     var body: some View {
@@ -109,8 +109,8 @@ struct AppManagementView: View {
                             .padding(.horizontal, 24)
                     }
                     
-                    // Estadísticas generales
-                    HStack(spacing: 40) {
+                    // Estadísticas generales mejoradas
+                    HStack(spacing: 20) {
                         StatisticItem(
                             icon: "app.badge",
                             value: "5",
@@ -124,6 +124,12 @@ struct AppManagementView: View {
                         )
                         
                         StatisticItem(
+                            icon: "exclamationmark.triangle.fill",
+                            value: "\(installedApps.filter { $0.status == .blocked }.reduce(0) { $0 + $1.accessAttempts })",
+                            label: "Intentos Bloqueados"
+                        )
+                        
+                        StatisticItem(
                             icon: "star.fill",
                             value: "WhatsApp",
                             label: "Más Usada"
@@ -131,16 +137,26 @@ struct AppManagementView: View {
                     }
                     .padding(.horizontal, 24)
                     
-                    // Lista de aplicaciones
-                    VStack(spacing: 12) {
-                        ForEach(installedApps) { app in
+                    // Lista de aplicaciones con separadores
+                    VStack(spacing: 0) {
+                        ForEach(Array(installedApps.enumerated()), id: \.element.id) { index, app in
                             AppRowView(app: app) { updatedApp in
-                                if let index = installedApps.firstIndex(where: { $0.id == updatedApp.id }) {
-                                    installedApps[index] = updatedApp
+                                if let appIndex = installedApps.firstIndex(where: { $0.id == updatedApp.id }) {
+                                    installedApps[appIndex] = updatedApp
                                 }
+                            }
+                            
+                            // Separador entre apps (excepto la última)
+                            if index < installedApps.count - 1 {
+                                Divider()
+                                    .background(Constants.Colors.darkGray.opacity(0.1))
+                                    .padding(.horizontal, 20)
                             }
                         }
                     }
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                     .padding(.horizontal, 24)
                 }
                 .background(Color.white)
@@ -262,75 +278,187 @@ struct AppRowView: View {
     
     var body: some View {
         HStack(spacing: 16) {
-            // Icono de la app
+            // Badge de estado rojo con el icono de la app
             ZStack {
-                Circle()
-                    .fill(Constants.Colors.primaryPurple.opacity(0.2))
-                    .frame(width: 50, height: 50)
+                AppIconView(iconName: app.iconName, size: 60)
                 
-                Image(systemName: "app.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(Constants.Colors.primaryPurple)
+                // Badge de estado (X roja para bloqueadas) en la esquina superior izquierda
+                if app.status == .blocked {
+                    VStack {
+                        HStack {
+                            ZStack {
+                                Circle()
+                                    .fill(.red)
+                                    .frame(width: 20, height: 20)
+                                
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                            .offset(x: -8, y: -8)
+                            
+                            Spacer()
+                        }
+                        Spacer()
+                    }
+                }
             }
             
-            // Información de la app
+            // Información de la app en el centro
             VStack(alignment: .leading, spacing: 4) {
+                // Nombre de la app
                 Text(app.name)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Constants.Colors.darkGray)
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundColor(.black)
                 
+                // Categoría
                 Text(app.category)
-                    .font(.system(size: 14))
-                    .foregroundColor(Constants.Colors.darkGray.opacity(0.6))
+                    .font(.system(size: 15))
+                    .foregroundColor(.gray)
                 
-                Text("\(app.usageToday) hoy")
-                    .font(.system(size: 12))
-                    .foregroundColor(Constants.Colors.darkGray.opacity(0.5))
+                // Tiempo hoy e intentos en la misma línea
+                HStack(spacing: 12) {
+                    // Tiempo de uso
+                    HStack(spacing: 2) {
+                        Text(app.usageToday)
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                        Text("hoy")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    
+                    // Intentos (solo para apps bloqueadas)
+                    if app.status == .blocked && app.accessAttempts > 0 {
+                        HStack(spacing: 2) {
+                            Text("\(app.accessAttempts)")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.red)
+                            Text("intentos")
+                                .font(.system(size: 14))
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+                
+                // Último intento (línea separada)
+                if app.status == .blocked, let lastAttempt = app.lastAttempt {
+                    Text("Último intento: \(lastAttempt)")
+                        .font(.system(size: 13))
+                        .foregroundColor(.orange)
+                }
             }
             
             Spacer()
             
-            // Botones de acción
+            // Botones en la derecha
             VStack(spacing: 8) {
+                // Botón principal (Permitir/Bloquear)
                 Button(action: {
                     var updatedApp = app
                     updatedApp.status = app.status == .allowed ? .blocked : .allowed
+                    if updatedApp.status == .allowed {
+                        updatedApp.accessAttempts = 0
+                        updatedApp.lastAttempt = nil
+                    }
                     onStatusChange(updatedApp)
                 }) {
-                    Text(app.status == .allowed ? "Bloquear" : "Permitir")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(app.status == .allowed ? .red : Constants.Colors.primaryPurple)
-                        .cornerRadius(16)
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .semibold))
+                        
+                        Text(app.status == .allowed ? "Bloquear" : "Permitir")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 8)
+                    .background(Constants.Colors.primaryPurple)
+                    .cornerRadius(20)
                 }
                 
+                // Botón secundario (Limitar)
                 Button(action: {
                     var updatedApp = app
                     updatedApp.status = app.status == .limited ? .allowed : .limited
                     onStatusChange(updatedApp)
                 }) {
-                    Text("Limitar")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Constants.Colors.primaryPurple)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Constants.Colors.primaryPurple.opacity(0.1))
-                        .cornerRadius(16)
+                    HStack(spacing: 6) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 12))
+                        
+                        Text("Limitar")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(Constants.Colors.primaryPurple)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 8)
+                    .background(Constants.Colors.primaryPurple.opacity(0.1))
+                    .cornerRadius(20)
                 }
             }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-        )
+        .padding(.horizontal, 20)
+        .padding(.vertical, 18)
+        .background(Color.white)
     }
 }
 
-// Modelo de datos para las aplicaciones
+// Vista personalizada para mostrar iconos de apps
+struct AppIconView: View {
+    let iconName: String
+    let size: CGFloat
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.2)
+                .fill(backgroundColorForApp(iconName))
+                .frame(width: size, height: size)
+            
+            Image(systemName: systemIconForApp(iconName))
+                .font(.system(size: size * 0.5, weight: .medium))
+                .foregroundColor(.white)
+        }
+    }
+    
+    // Función para obtener colores de fondo específicos por app
+    private func backgroundColorForApp(_ iconName: String) -> Color {
+        switch iconName.lowercased() {
+        case "tiktok":
+            return Color.black
+        case "instagram":
+            return Color.pink
+        case "facebook":
+            return Color.blue
+        case "whatsapp":
+            return Color.green
+        case "snapchat":
+            return Color.yellow
+        default:
+            return Constants.Colors.primaryPurple
+        }
+    }
+    
+    // Función para obtener iconos del sistema apropiados
+    private func systemIconForApp(_ iconName: String) -> String {
+        switch iconName.lowercased() {
+        case "tiktok":
+            return "music.note"
+        case "instagram":
+            return "camera.fill"
+        case "facebook":
+            return "person.2.fill"
+        case "whatsapp":
+            return "message.fill"
+        case "snapchat":
+            return "camera.viewfinder"
+        default:
+            return "app.fill"
+        }
+    }
+}
+
+// Modelo de datos actualizado para las aplicaciones
 struct AppInfo: Identifiable {
     let id = UUID()
     let name: String
@@ -338,6 +466,9 @@ struct AppInfo: Identifiable {
     let totalTime: String
     let usageToday: String
     var status: AppStatus
+    let iconName: String
+    var accessAttempts: Int
+    var lastAttempt: String?
 }
 
 enum AppStatus {

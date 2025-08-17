@@ -407,10 +407,10 @@ class AcceptChildCodeSerializer(serializers.Serializer):
         self.child_code = child_code
         return value
 
-    def validate_device_id(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("Device ID is required")
-        return value.strip()
+    # def validate_device_id(self, value):
+    #     if not value.strip():
+    #         raise serializers.ValidationError("Device ID is required")
+    #     return value.strip()
 
     def create(self, validated_data):
         child_code = self.child_code
