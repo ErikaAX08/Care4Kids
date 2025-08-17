@@ -1,10 +1,11 @@
 import re
+import uuid
 
 from django.contrib.auth import authenticate
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import FamilyInvitation, Parent
+from .models import ChildRegistrationCode, FamilyInvitation, Parent
 
 
 class ParentRegistrationSerializer(serializers.ModelSerializer):
@@ -309,3 +310,169 @@ class ChatbotSerializer(serializers.Serializer):
         if not value.strip():
             raise serializers.ValidationError("Message cannot be empty")
         return value.strip()
+
+
+# Add this to your serializers.py
+
+
+class GenerateChildCodeSerializer(serializers.Serializer):
+    child_name = serializers.CharField(max_length=100)
+    device_type = serializers.CharField(max_length=50, required=False, default="")
+    device_model = serializers.CharField(max_length=100, required=False, default="")
+    notes = serializers.CharField(max_length=500, required=False, default="")
+
+    def validate_child_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Child name cannot be empty")
+        return value.strip()
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        user = request.user
+        child_name = attrs["child_name"]
+
+        # Check if there's already a pending registration for this child name in this family
+        existing_code = ChildRegistrationCode.objects.filter(
+            child_name=child_name, family_id=user.family_id, status="pending"
+        ).first()
+
+        if existing_code and not existing_code.is_expired:
+            raise serializers.ValidationError(
+                f"A registration code is already pending for {child_name}"
+            )
+
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context["request"]
+        user = request.user
+
+        # Cancel any existing pending codes for this child name in this family
+        ChildRegistrationCode.objects.filter(
+            child_name=validated_data["child_name"],
+            family_id=user.family_id,
+            status="pending",
+        ).update(status="cancelled")
+
+        # Prepare device info
+        device_info = {
+            "device_type": validated_data.get("device_type", ""),
+            "device_model": validated_data.get("device_model", ""),
+            "notes": validated_data.get("notes", ""),
+            "expected_setup_date": timezone.now().isoformat(),
+        }
+
+        # Create new child registration code
+        child_code = ChildRegistrationCode.objects.create(
+            child_name=validated_data["child_name"],
+            family_id=user.family_id,
+            created_by=user,
+            device_info=device_info,
+        )
+
+        return child_code
+
+
+class AcceptChildCodeSerializer(serializers.Serializer):
+    registration_code = serializers.CharField(max_length=6, min_length=6)
+    device_id = serializers.CharField(max_length=100)  # Device unique identifier
+    device_name = serializers.CharField(max_length=100, required=False, default="")
+    device_os = serializers.CharField(max_length=50, required=False, default="")
+    device_model = serializers.CharField(max_length=100, required=False, default="")
+    app_version = serializers.CharField(max_length=20, required=False, default="")
+
+    def validate_registration_code(self, value):
+        # Validate format - must be exactly 6 digits
+        if not re.match(r"^\d{6}$", value):
+            raise serializers.ValidationError(
+                "Registration code must be exactly 6 digits"
+            )
+
+        # Find the child registration code
+        try:
+            child_code = ChildRegistrationCode.objects.get(
+                registration_code=value, status="pending"
+            )
+        except ChildRegistrationCode.DoesNotExist:
+            raise serializers.ValidationError(
+                "No pending registration found for this code"
+            )
+
+        if child_code.is_expired:
+            child_code.status = "expired"
+            child_code.save()
+            raise serializers.ValidationError("This registration code has expired")
+
+        # Store for use in create method
+        self.child_code = child_code
+        return value
+
+    def validate_device_id(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Device ID is required")
+        return value.strip()
+
+    def create(self, validated_data):
+        child_code = self.child_code
+
+        # Prepare device monitoring info (convert datetime to ISO string)
+        device_data = {
+            "device_id": validated_data["device_id"],
+            "device_name": validated_data.get(
+                "device_name", f"{child_code.child_name}'s Device"
+            ),
+            "device_os": validated_data.get("device_os", ""),
+            "device_model": validated_data.get("device_model", ""),
+            "app_version": validated_data.get("app_version", ""),
+            "linked_at": timezone.now().isoformat(),
+            "status": "active",
+        }
+
+        # Update device info in registration code
+        child_code.device_info.update(
+            {
+                "actual_device": device_data,
+                "monitoring_enabled": True,
+            }
+        )
+
+        # Mark as used
+        child_code.status = "used"
+        child_code.used_at = timezone.now()
+        child_code.save()
+
+        # Add child and device to MongoDB family
+        self.add_child_to_mongodb_family(child_code, device_data)
+
+        return child_code
+
+    def add_child_to_mongodb_family(self, child_code, device_data):
+        from utils.mongodb import mongodb_connection
+
+        db = mongodb_connection.get_database()
+        families_collection = db.families
+
+        # Create child document with device for monitoring (convert datetime to ISO strings)
+        child_data = {
+            "child_id": str(uuid.uuid4()),
+            "name": child_code.child_name,
+            "registration_code": child_code.registration_code,
+            "added_at": timezone.now().isoformat(),
+            "added_by": child_code.created_by.id,
+            "devices": [device_data],  # Array of monitored devices
+            "monitoring_settings": {
+                "screen_time_enabled": True,
+                "app_restrictions_enabled": True,
+                "location_tracking_enabled": False,  # Can be configured later
+                "bedtime_mode_enabled": True,
+            },
+        }
+
+        # Add child to family
+        families_collection.update_one(
+            {"family_id": child_code.family_id},
+            {
+                "$push": {"children": child_data},
+                "$set": {"updated_at": timezone.now().isoformat()},
+            },
+        )

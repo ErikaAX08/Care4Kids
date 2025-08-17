@@ -1,10 +1,12 @@
 from django.urls import path
 
 from .views import LoginView  # Your existing views
-from .views import (AcceptInvitationView, ChatbotView,  # Add FirstNameView
-                    CheckInvitationView, FirstNameView, LogoutView,
-                    MyInvitationsView, ParentRegistrationView,
-                    SendFamilyInvitationView, UserProfileView)
+from .views import (AcceptChildCodeView,  # Add AcceptChildCodeView
+                    AcceptInvitationView, ChatbotView, CheckInvitationView,
+                    FirstNameView, GenerateChildCodeView, LogoutView,
+                    MyChildCodesView, MyInvitationsView,
+                    ParentRegistrationView, SendFamilyInvitationView,
+                    UserProfileView)
 
 urlpatterns = [
     # Authentication endpoints
@@ -25,4 +27,14 @@ urlpatterns = [
     path("chatbot/", ChatbotView.as_view(), name="chatbot"),
     # User utilities
     path("auth/first-name/", FirstNameView.as_view(), name="first-name"),
+    # Child registration endpoints
+    path(
+        "children/generate-code/",
+        GenerateChildCodeView.as_view(),
+        name="generate-child-code",
+    ),
+    path(
+        "children/accept-code/", AcceptChildCodeView.as_view(), name="accept-child-code"
+    ),
+    path("children/my-codes/", MyChildCodesView.as_view(), name="my-child-codes"),
 ]
